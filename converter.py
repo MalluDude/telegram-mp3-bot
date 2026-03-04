@@ -216,11 +216,9 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if platform == 'spotify':
             await processing_msg.edit_text(f"{emoji} 🎵 Extracting Spotify track info...")
             
-            # Try to extract track ID
-            track_id = extract_spotify_track_id(url)
-            
-            if track_id:
-                # Use yt-dlp to extract Spotify metadata
+            # Try multiple approaches for Spotify
+            try:
+                # Method 1: Try with yt-dlp first
                 ydl_opts = {
                     'quiet': True,
                     'no_warnings': True,
@@ -228,26 +226,59 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    try:
-                        info = ydl.extract_info(url, download=False)
-                        if info and 'title' in info:
-                            search_query = f"{info['title']} {info.get('artist', '')} audio"
-                            url = f"ytsearch:{search_query}"
-                            platform = 'youtube'  # Switch to YouTube for download
-                    except:
-                        # Fallback to simple search
-                        url = f"ytsearch:{url} audio"
+                    info = ydl.extract_info(url, download=False)
+                    if info and 'title' in info:
+                        artist = info.get('artist', info.get('uploader', ''))
+                        track = info.get('track', info.get('title', ''))
+                        search_query = f"{track} {artist} audio"
+                        url = f"ytsearch1:{search_query}"
                         platform = 'youtube'
-            else:
-                url = f"ytsearch:{url} audio"
+                    else:
+                        # Fallback to simple search
+                        url = f"ytsearch1:{url} audio"
+                        platform = 'youtube'
+            except:
+                # Method 2: Manual search as fallback
+                url = f"ytsearch1:{url} audio"
                 platform = 'youtube'
         
         # Generate safe filename
         timestamp = int(time.time())
         safe_filename = f"{username}_{timestamp}_{platform}"
         
-        # Configure download options
-        ydl_opts = get_ydl_opts(safe_filename, platform)
+        # Platform-specific options
+        if platform == 'youtube':
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
+                'noplaylist': True,
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'ignoreerrors': True,
+                'no_color': True,
+                'geo_bypass': True,
+                'geo_bypass_country': 'US',
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'web', 'ios', 'mweb'],
+                        'skip': ['hls', 'dash'],
+                    }
+                },
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-us,en;q=0.5',
+                    'Sec-Fetch-Mode': 'navigate',
+                }
+            }
+        else:
+            ydl_opts = get_ydl_opts(safe_filename, platform)
         
         mp3_file = None
         
@@ -256,27 +287,35 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 await processing_msg.edit_text(f"{emoji} 🔍 Fetching video information...")
                 
-                # Try to extract info
-                try:
-                    info = ydl.extract_info(url, download=False)
-                except Exception as e:
-                    logger.error(f"Info extraction error: {e}")
-                    await processing_msg.edit_text(
-                        f"{emoji} ❌ Could not access the video.\n"
-                        "It might be private, age-restricted, or unavailable."
-                    )
-                    return
+                # Try multiple times for YouTube
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        info = ydl.extract_info(url, download=False)
+                        break
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            raise
+                        logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                        await asyncio.sleep(2)
                 
-                # Handle playlists
+                # Handle search results
                 if 'entries' in info:
-                    if len(info['entries']) > 1:
+                    if len(info['entries']) == 0:
                         await processing_msg.edit_text(
-                            f"{emoji} ❌ Playlists are not supported.\n"
-                            "Please send a single video/track URL."
+                            f"{emoji} ❌ No videos found.\n"
+                            "Please try a different link or search term."
                         )
                         return
-                    elif len(info['entries']) == 1:
-                        info = info['entries'][0]
+                    
+                    # Get first entry from search
+                    info = info['entries'][0]
+                    
+                    if not info:
+                        await processing_msg.edit_text(
+                            f"{emoji} ❌ Could not find any matching video."
+                        )
+                        return
                 
                 # Check duration
                 duration = info.get('duration', 0)
@@ -289,7 +328,7 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Get video details for response
                 title = info.get('title', 'Unknown')
-                uploader = info.get('uploader', 'Unknown')
+                uploader = info.get('uploader', info.get('channel', 'Unknown'))
                 duration_str = format_duration(duration)
                 
                 # Estimate size
@@ -302,7 +341,7 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👤 *Uploader:* {uploader}\n"
                     f"⏱️ *Duration:* {duration_str}\n"
                     f"📦 *Est. Size:* {size_str}\n\n"
-                    f"⬇️ Starting download..."
+                    f"⬇️ Downloading and converting..."
                 )
                 
                 # Download and convert
@@ -313,8 +352,14 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Check if file exists
             if not os.path.exists(mp3_file):
-                await processing_msg.edit_text(f"{emoji} ❌ Conversion failed - output file not found")
-                return
+                # Try to find any mp3 file in download folder
+                import glob
+                mp3_files = glob.glob(f"{DOWNLOAD_FOLDER}/*.mp3")
+                if mp3_files:
+                    mp3_file = max(mp3_files, key=os.path.getctime)
+                else:
+                    await processing_msg.edit_text(f"{emoji} ❌ Conversion failed - output file not found")
+                    return
             
             # Check file size
             file_size = os.path.getsize(mp3_file)
@@ -350,17 +395,20 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if "Private video" in error_msg:
                 await processing_msg.edit_text(f"{emoji} 🔒 This video is private")
-            elif "age" in error_msg.lower():
+            elif "age" in error_msg.lower() or "age-gate" in error_msg.lower():
                 await processing_msg.edit_text(
                     f"{emoji} 🔞 Age-restricted content.\n"
-                    "Try adding YouTube cookies to bypass."
+                    "I need cookies.txt to access this video.\n\n"
+                    "Try a different video or contact the bot owner."
                 )
             elif "copyright" in error_msg.lower():
                 await processing_msg.edit_text(f"{emoji} ⚖️ Video removed due to copyright")
+            elif "unavailable" in error_msg.lower():
+                await processing_msg.edit_text(f"{emoji} ❌ Video unavailable in your region")
             else:
                 await processing_msg.edit_text(
                     f"{emoji} ❌ Download failed.\n"
-                    "The video might be unavailable or region-locked."
+                    f"Error: {error_msg[:100]}"
                 )
         except Exception as e:
             logger.error(f"Conversion error for {url}: {e}", exc_info=True)
@@ -428,5 +476,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
