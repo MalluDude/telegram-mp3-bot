@@ -20,7 +20,7 @@ async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        'cookiefile': 'cookies.txt',
+        'cookiefile': 'cookies.txt','cookies1.txt',cookies2.txt,
         'noplaylist': True,
         'quiet': True,
         'http_headers': {
@@ -63,3 +63,4 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_audio))
 print("🚀 Universal Media → MP3 Bot Running")
 
 app.run_polling()
+
