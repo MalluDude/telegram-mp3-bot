@@ -1,1 +1,7 @@
-python-telegram-bot
+telethon
+moviepy
+imageio
+imageio-ffmpeg
+numpy
+pillow
+proglog
