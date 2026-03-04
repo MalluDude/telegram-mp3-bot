@@ -171,12 +171,14 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # yt-dlp options
         ydl_opts = {
-    'format': 'bestaudio/best',
-    'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
-    'noplaylist': True,
-    'quiet': True,
-    'no_warnings': True,
-    'geo_bypass': True,
+            'concurrent_fragment_downloads': 5,
+            'fragment_retries': 10,
+            'format': 'bestaudio/best',
+            'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'geo_bypass': True,
 
     # IMPORTANT
     'cookiefile': 'cookies.txt',
@@ -291,6 +293,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
