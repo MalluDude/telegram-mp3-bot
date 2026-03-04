@@ -1,4 +1,5 @@
 python-telegram-bot
+yt-dlp
 telethon
 moviepy
 imageio
