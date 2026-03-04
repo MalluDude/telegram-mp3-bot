@@ -6,8 +6,11 @@ import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
-from urllib.parse import urlparse
 import time
+from dotenv import load_dotenv  # You'll need to install python-dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -16,19 +19,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration
-BOT_TOKEN = "8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI"
-DOWNLOAD_FOLDER = "downloads"
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB Telegram limit
-MAX_DURATION = 3600  # 1 hour max duration
-ALLOWED_DOMAINS = [
-    'youtube.com', 'youtu.be', 'youtube shorts',
-    'spotify.com', 'open.spotify.com',
-    'instagram.com', 'instagr.am',
-    'pinterest.com', 'pin.it',
-    'facebook.com', 'fb.watch', 'fb.com',
-    'twitter.com', 'x.com', 'tiktok.com', 'reddit.com'
-]
+# Configuration from environment variables
+BOT_TOKEN = os.getenv("8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI")
+if not BOT_TOKEN:
+    raise ValueError("No BOT_TOKEN found in environment variables!")
+
+DOWNLOAD_FOLDER = os.getenv("DOWNLOAD_FOLDER", "downloads")
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 50 * 1024 * 1024))  # 50MB default
+MAX_DURATION = int(os.getenv("MAX_DURATION", 3600))  # 1 hour default
 
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -50,7 +48,7 @@ def detect_platform(url):
     url_lower = url.lower()
     
     platforms = {
-        'youtube': ['youtube.com', 'youtu.be', 'm.youtube.com'],
+        'youtube': ['youtube.com', 'youtu.be', 'm.youtube.com', 'youtube shorts'],
         'spotify': ['spotify.com', 'open.spotify.com', 'spotify:'],
         'instagram': ['instagram.com', 'instagr.am'],
         'pinterest': ['pinterest.com', 'pin.it', 'pinterest.co'],
@@ -66,19 +64,6 @@ def detect_platform(url):
                 return platform
     
     return 'unknown'
-
-def extract_spotify_track_id(url):
-    """Extract track ID from Spotify URL"""
-    patterns = [
-        r'track/([a-zA-Z0-9]+)',
-        r'spotify:track:([a-zA-Z0-9]+)'
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
 
 def get_ydl_opts(filename, platform='youtube'):
     """Get platform-specific youtube-dl options"""
@@ -101,29 +86,39 @@ def get_ydl_opts(filename, platform='youtube'):
     }
     
     # Platform-specific configurations
-    if platform == 'instagram':
+    if platform == 'youtube':
+        opts.update({
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web', 'ios', 'mweb'],
+                    'skip': ['hls', 'dash'],
+                }
+            },
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
+        })
+    elif platform == 'instagram':
         opts['extractor_args'] = {'instagram': {'api': 'android'}}
     elif platform == 'facebook':
         opts['extractor_args'] = {'facebook': {'api': 'android'}}
     elif platform == 'tiktok':
         opts['extractor_args'] = {'tiktok': {'api': 'android'}}
-    elif platform == 'youtube':
-        opts['extractor_args'] = {
-            'youtube': {
-                'player_client': ['android', 'web']
-            }
-        }
+        opts['extract_flat'] = False
     elif platform == 'pinterest':
-        opts['extract_flat'] = True  # Pinterest needs special handling
+        opts['extract_flat'] = True
     
     # Add cookies if available
-    if os.path.exists('cookies.txt'):
-        opts['cookiefile'] = 'cookies.txt'
+    cookies_file = os.getenv('COOKIES_FILE', 'cookies.txt')
+    if os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
+        logger.info(f"Using cookies from {cookies_file}")
     
     return opts
 
 def format_size(bytes):
     """Format file size"""
+    if not bytes:
+        return "Unknown"
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes < 1024.0:
             return f"{bytes:.1f} {unit}"
@@ -156,28 +151,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎵 TikTok (videos)\n"
         "👽 Reddit (videos)\n\n"
         "⚠️ *Limitations:*\n"
-        f"• Max file size: 50MB\n"
-        f"• Max duration: 60 minutes\n"
+        f"• Max file size: {MAX_FILE_SIZE // (1024*1024)}MB\n"
+        f"• Max duration: {MAX_DURATION // 60} minutes\n"
         "• No playlists or albums\n\n"
         "Simply paste any link and I'll handle the rest! 🚀"
     )
     await update.message.reply_text(welcome_message, parse_mode=ParseMode.MARKDOWN)
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command"""
-    help_text = (
-        "*How to use:*\n"
-        "1. Copy a link from any supported platform\n"
-        "2. Paste it here\n"
-        "3. Wait for conversion\n"
-        "4. Download the MP3\n\n"
-        "*Tips:*\n"
-        "• For Spotify, I'll search YouTube for the best match\n"
-        "• Longer videos take more time to process\n"
-        "• Make sure the video is publicly accessible\n"
-        "• If conversion fails, try a different link"
-    )
-    await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
 async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Main conversion function"""
@@ -213,12 +192,12 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # Special handling for Spotify
+        original_url = url
         if platform == 'spotify':
             await processing_msg.edit_text(f"{emoji} 🎵 Extracting Spotify track info...")
             
-            # Try multiple approaches for Spotify
             try:
-                # Method 1: Try with yt-dlp first
+                # Try with yt-dlp first
                 ydl_opts = {
                     'quiet': True,
                     'no_warnings': True,
@@ -233,12 +212,12 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         search_query = f"{track} {artist} audio"
                         url = f"ytsearch1:{search_query}"
                         platform = 'youtube'
+                        await processing_msg.edit_text(f"{emoji} 🎵 Found: {track} by {artist}\n🔍 Searching YouTube...")
                     else:
-                        # Fallback to simple search
                         url = f"ytsearch1:{url} audio"
                         platform = 'youtube'
-            except:
-                # Method 2: Manual search as fallback
+            except Exception as e:
+                logger.warning(f"Spotify extraction failed: {e}")
                 url = f"ytsearch1:{url} audio"
                 platform = 'youtube'
         
@@ -246,39 +225,8 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         timestamp = int(time.time())
         safe_filename = f"{username}_{timestamp}_{platform}"
         
-        # Platform-specific options
-        if platform == 'youtube':
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
-                'noplaylist': True,
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'ignoreerrors': True,
-                'no_color': True,
-                'geo_bypass': True,
-                'geo_bypass_country': 'US',
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'web', 'ios', 'mweb'],
-                        'skip': ['hls', 'dash'],
-                    }
-                },
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-us,en;q=0.5',
-                    'Sec-Fetch-Mode': 'navigate',
-                }
-            }
-        else:
-            ydl_opts = get_ydl_opts(safe_filename, platform)
+        # Get platform-specific options
+        ydl_opts = get_ydl_opts(safe_filename, platform)
         
         mp3_file = None
         
@@ -289,19 +237,25 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Try multiple times for YouTube
                 max_retries = 3
+                info = None
+                
                 for attempt in range(max_retries):
                     try:
                         info = ydl.extract_info(url, download=False)
                         break
                     except Exception as e:
+                        logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {str(e)[:100]}")
                         if attempt == max_retries - 1:
                             raise
-                        logger.warning(f"Attempt {attempt + 1} failed: {e}")
                         await asyncio.sleep(2)
+                
+                if not info:
+                    await processing_msg.edit_text(f"{emoji} ❌ Could not fetch video information")
+                    return
                 
                 # Handle search results
                 if 'entries' in info:
-                    if len(info['entries']) == 0:
+                    if not info['entries']:
                         await processing_msg.edit_text(
                             f"{emoji} ❌ No videos found.\n"
                             "Please try a different link or search term."
@@ -317,60 +271,76 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         return
                 
+                # Check if video is available
+                if info.get('availability') == 'private':
+                    await processing_msg.edit_text(f"{emoji} 🔒 This video is private")
+                    return
+                
                 # Check duration
                 duration = info.get('duration', 0)
                 if duration > MAX_DURATION:
                     await processing_msg.edit_text(
-                        f"{emoji} ❌ Video too long (>60 minutes).\n"
+                        f"{emoji} ❌ Video too long (> {MAX_DURATION//60} minutes).\n"
                         f"Duration: {format_duration(duration)}"
                     )
                     return
                 
-                # Get video details for response
+                # Get video details
                 title = info.get('title', 'Unknown')
                 uploader = info.get('uploader', info.get('channel', 'Unknown'))
                 duration_str = format_duration(duration)
                 
                 # Estimate size
                 filesize = info.get('filesize', 0) or info.get('filesize_approx', 0)
-                size_str = format_size(filesize) if filesize else "Unknown"
+                size_str = format_size(filesize)
                 
                 # Send info message
-                await processing_msg.edit_text(
+                info_text = (
                     f"{emoji} *Found:* {title[:100]}{'...' if len(title) > 100 else ''}\n"
                     f"👤 *Uploader:* {uploader}\n"
                     f"⏱️ *Duration:* {duration_str}\n"
-                    f"📦 *Est. Size:* {size_str}\n\n"
-                    f"⬇️ Downloading and converting..."
                 )
+                if filesize:
+                    info_text += f"📦 *Est. Size:* {size_str}\n"
+                info_text += f"\n⬇️ Downloading and converting..."
+                
+                await processing_msg.edit_text(info_text, parse_mode=ParseMode.MARKDOWN)
                 
                 # Download and convert
                 ydl.download([url])
-                filename = ydl.prepare_filename(info)
-            
-            mp3_file = filename.rsplit(".", 1)[0] + ".mp3"
-            
-            # Check if file exists
-            if not os.path.exists(mp3_file):
-                # Try to find any mp3 file in download folder
-                import glob
-                mp3_files = glob.glob(f"{DOWNLOAD_FOLDER}/*.mp3")
-                if mp3_files:
-                    mp3_file = max(mp3_files, key=os.path.getctime)
+                
+                # Get the actual filename
+                if 'requested_downloads' in info:
+                    filename = info['requested_downloads'][0]['filepath']
                 else:
-                    await processing_msg.edit_text(f"{emoji} ❌ Conversion failed - output file not found")
-                    return
+                    filename = ydl.prepare_filename(info)
+            
+            # Find the MP3 file
+            mp3_file = None
+            if filename and os.path.exists(filename):
+                base = filename.rsplit(".", 1)[0]
+                mp3_file = base + ".mp3"
+            else:
+                # Try to find any recent MP3 file
+                import glob
+                mp3_files = sorted(glob.glob(f"{DOWNLOAD_FOLDER}/*.mp3"), key=os.path.getctime, reverse=True)
+                if mp3_files:
+                    mp3_file = mp3_files[0]
+            
+            if not mp3_file or not os.path.exists(mp3_file):
+                await processing_msg.edit_text(f"{emoji} ❌ Conversion failed - output file not found")
+                return
             
             # Check file size
             file_size = os.path.getsize(mp3_file)
             if file_size > MAX_FILE_SIZE:
                 os.remove(mp3_file)
                 await processing_msg.edit_text(
-                    f"{emoji} ❌ Converted file too large (>50MB): {format_size(file_size)}"
+                    f"{emoji} ❌ Converted file too large (> {MAX_FILE_SIZE//(1024*1024)}MB): {format_size(file_size)}"
                 )
                 return
             
-            # Upload with progress
+            # Upload
             await processing_msg.edit_text(f"{emoji} 📤 Uploading MP3...")
             
             with open(mp3_file, "rb") as audio:
@@ -390,38 +360,40 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info(f"User @{username} converted: {title[:50]}... ({platform})")
             
         except yt_dlp.utils.DownloadError as e:
-            logger.error(f"Download error for {url}: {e}")
-            error_msg = str(e)
+            logger.error(f"Download error: {e}")
+            error_msg = str(e).lower()
             
-            if "Private video" in error_msg:
+            if "private" in error_msg:
                 await processing_msg.edit_text(f"{emoji} 🔒 This video is private")
-            elif "age" in error_msg.lower() or "age-gate" in error_msg.lower():
+            elif "age" in error_msg or "age-gate" in error_msg:
                 await processing_msg.edit_text(
                     f"{emoji} 🔞 Age-restricted content.\n"
-                    "I need cookies.txt to access this video.\n\n"
-                    "Try a different video or contact the bot owner."
+                    "The bot needs cookies.txt to access this video."
                 )
-            elif "copyright" in error_msg.lower():
+            elif "copyright" in error_msg:
                 await processing_msg.edit_text(f"{emoji} ⚖️ Video removed due to copyright")
-            elif "unavailable" in error_msg.lower():
-                await processing_msg.edit_text(f"{emoji} ❌ Video unavailable in your region")
+            elif "unavailable" in error_msg:
+                await processing_msg.edit_text(f"{emoji} ❌ Video unavailable")
             else:
                 await processing_msg.edit_text(
                     f"{emoji} ❌ Download failed.\n"
-                    f"Error: {error_msg[:100]}"
+                    f"Error: {str(e)[:100]}"
                 )
         except Exception as e:
-            logger.error(f"Conversion error for {url}: {e}", exc_info=True)
+            logger.error(f"Conversion error: {e}", exc_info=True)
             await processing_msg.edit_text(
                 f"{emoji} ❌ Conversion failed: {str(e)[:100]}"
             )
         finally:
-            # Cleanup on error
+            # Cleanup
             if mp3_file and os.path.exists(mp3_file):
-                os.remove(mp3_file)
+                try:
+                    os.remove(mp3_file)
+                except:
+                    pass
                 
     except Exception as e:
-        logger.error(f"General error for {url}: {e}", exc_info=True)
+        logger.error(f"General error: {e}", exc_info=True)
         await processing_msg.edit_text(
             "❌ An unexpected error occurred.\n"
             "Please try again later or with a different link."
@@ -453,29 +425,31 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot"""
-    if BOT_TOKEN == "8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI":
-        print("⚠️ Please set your BOT_TOKEN in the script")
-        return
+    print("🚀 Universal Media to MP3 Bot Starting...")
+    print(f"✅ Download folder: {DOWNLOAD_FOLDER}")
+    print(f"✅ Max file size: {MAX_FILE_SIZE//(1024*1024)}MB")
+    print(f"✅ Max duration: {MAX_DURATION//60} minutes")
+    
+    # Check for cookies
+    if os.path.exists('cookies.txt'):
+        print("✅ Cookies file found")
+    else:
+        print("⚠️ No cookies.txt found - age-restricted content may fail")
     
     # Create application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("help", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, convert))
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_error_handler(error_handler)
     
-    print("🚀 Universal Media to MP3 Bot Started!")
-    print(f"✅ Supported platforms: YouTube, Spotify, Instagram, Pinterest, Facebook, Twitter, TikTok, Reddit")
-    print("📝 Send any supported link to convert to MP3")
+    print("🤖 Bot is running! Press Ctrl+C to stop")
     
     # Start bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
-
-
-
