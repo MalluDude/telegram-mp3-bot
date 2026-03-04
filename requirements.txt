@@ -2,3 +2,4 @@ python-telegram-bot==20.3
 yt-dlp
 python-dotenv
 requests
+httpcore>=1.0.8  # Add this line to force the fixed version
