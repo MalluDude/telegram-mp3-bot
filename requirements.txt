@@ -1,6 +1,7 @@
 python-telegram-bot==20.7
-python-dotenv
 yt-dlp
+python-dotenv
+requests
 telethon
 moviepy
 imageio
