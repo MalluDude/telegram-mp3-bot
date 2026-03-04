@@ -3,9 +3,9 @@ import yt_dlp
 import re
 import logging
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler, CallbackQueryHandler
-from telegram.constants import ParseMode
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+# NOT from telegram.ext import Updater (old version)from telegram.constants import ParseMode
 import time
 from dotenv import load_dotenv
 
@@ -255,3 +255,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
