@@ -171,18 +171,28 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # yt-dlp options
         ydl_opts = {
-    'cookiefile': 'cookies.txt',
     'format': 'bestaudio/best',
     'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
     'noplaylist': True,
     'quiet': True,
     'no_warnings': True,
     'geo_bypass': True,
+
+    # IMPORTANT
+    'cookiefile': 'cookies.txt',
+
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
+
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web']
+        }
+    },
+
     'http_headers': {
         'User-Agent': 'Mozilla/5.0'
     }
@@ -281,6 +291,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
