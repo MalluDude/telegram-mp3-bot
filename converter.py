@@ -405,7 +405,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot"""
-    if BOT_TOKEN == "YOUR_BOT_TOKEN":
+    if BOT_TOKEN == "8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI":
         print("⚠️ Please set your BOT_TOKEN in the script")
         return
     
@@ -428,4 +428,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
