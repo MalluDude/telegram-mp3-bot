@@ -1,53 +1,47 @@
 import os
-import subprocess
+import yt_dlp
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = "8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI"
 
-async def convert_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    video = update.message.video or update.message.document
+async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if not video:
-        await update.message.reply_text("❌ Please send a valid video file.")
-        return
+    url = update.message.text
 
-    await update.message.reply_text("📥 Downloading video...")
+    await update.message.reply_text("⚡ Processing your request...")
 
-    file = await context.bot.get_file(video.file_id)
-
-    video_path = f"{video.file_id}.mp4"
-    audio_path = f"{video.file_id}.mp3"
-
-    await file.download_to_drive(video_path)
-
-    await update.message.reply_text("🎵 Converting to MP3...")
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': 'audio.%(ext)s',
+        'noplaylist': True,
+        'quiet': True,
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+    }
 
     try:
-        subprocess.run(
-            ["ffmpeg", "-i", video_path, "-vn", "-ab", "192k", audio_path],
-            check=True
-        )
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
         await update.message.reply_text("📤 Uploading MP3...")
 
-        with open(audio_path, "rb") as audio:
-            await update.message.reply_audio(audio)
+        await update.message.reply_audio(audio=open("audio.mp3", "rb"))
 
     except Exception as e:
-        await update.message.reply_text("❌ Conversion failed.")
+        await update.message.reply_text("❌ Download failed.")
 
-    finally:
-        if os.path.exists(video_path):
-            os.remove(video_path)
+    if os.path.exists("audio.mp3"):
+        os.remove("audio.mp3")
 
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-app.add_handler(MessageHandler(filters.VIDEO | filters.Document.VIDEO, convert_video))
+app.add_handler(MessageHandler(filters.TEXT, download_audio))
 
-print("🤖 MP3 Converter Bot Running...")
+print("🚀 Universal Media → MP3 Bot Running")
 
 app.run_polling()
