@@ -1,5 +1,4 @@
 python-telegram-bot==20.7
-pip install --upgrade yt-dlp
 yt-dlp
 python-dotenv
 curl-cffi>=0.5.10
