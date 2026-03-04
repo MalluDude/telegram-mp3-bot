@@ -5,7 +5,7 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-# NOT from telegram.ext import Updater (old version)from telegram.constants import ParseMode
+from telegram.constants import ParseMode
 import time
 from dotenv import load_dotenv
 
@@ -146,6 +146,7 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # yt-dlp options
         ydl_opts = {
+            'cookiefile': 'cookies.txt',
             'format': 'bestaudio/best',
             'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
             'noplaylist': True,
@@ -255,4 +256,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
