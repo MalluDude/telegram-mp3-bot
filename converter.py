@@ -45,6 +45,7 @@ PLATFORM_EMOJIS = {
 }
 
 def detect_platform(url):
+    """Detect the platform from the URL"""
     url = url.lower()
 
     if "youtu" in url:
@@ -72,24 +73,6 @@ def detect_platform(url):
         return "reddit"
 
     return "unknown"
-    
-    platforms = {
-        'youtube': ['youtube.com', 'youtu.be', 'm.youtube.com', 'youtube shorts'],
-        'spotify': ['spotify.com', 'open.spotify.com', 'spotify:'],
-        'instagram': ['instagram.com', 'instagr.am'],
-        'pinterest': ['pinterest.com', 'pin.it', 'pinterest.co'],
-        'facebook': ['facebook.com', 'fb.watch', 'fb.com', 'fb.me'],
-        'twitter': ['twitter.com', 'x.com', 'tweet'],
-        'tiktok': ['tiktok.com', 'vm.tiktok.com'],
-        'reddit': ['reddit.com', 'redd.it']
-    }
-    
-    for platform, domains in platforms.items():
-        for domain in domains:
-            if domain in url_lower:
-                return platform
-    
-    return 'unknown'
 
 def format_size(bytes):
     """Format file size"""
@@ -179,36 +162,25 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quiet': True,
             'no_warnings': True,
             'geo_bypass': True,
-
-    # IMPORTANT
-    'cookiefile': 'cookies.txt',
-
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['android', 'web']
-        }
-    },
-
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0'
-    }
-}
-        
-        # Add YouTube-specific options
-        if platform == 'youtube':
-    ydl_opts.update({
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android']
+            'cookiefile': 'cookies.txt',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0'
             }
         }
-    })
+        
+        # Add YouTube-specific options (override with android client only)
+        if platform == 'youtube':
+            ydl_opts['extractor_args']['youtube']['player_client'] = ['android']
         
         mp3_file = None
         
@@ -293,10 +265,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
