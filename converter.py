@@ -12,16 +12,17 @@ async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⚡ Processing your request...")
 
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'audio.%(ext)s',
-        'noplaylist': True,
-        'quiet': True,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-    }
+    'format': 'bestaudio/best',
+    'outtmpl': 'audio.%(ext)s',
+    'cookiefile': 'cookies.txt',
+    'noplaylist': True,
+    'quiet': True,
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+}
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -45,3 +46,4 @@ app.add_handler(MessageHandler(filters.TEXT, download_audio))
 print("🚀 Universal Media → MP3 Bot Running")
 
 app.run_polling()
+
