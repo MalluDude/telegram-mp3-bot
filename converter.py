@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = "8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI"
 DOWNLOAD_FOLDER = "downloads"
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB Telegram limit
 MAX_DURATION = 3600  # 1 hour max duration
@@ -428,3 +428,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
