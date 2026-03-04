@@ -1,3 +1,4 @@
+pip install python-telegram-bot yt-dlp python-dotenv
 python-telegram-bot
 yt-dlp
 telethon
