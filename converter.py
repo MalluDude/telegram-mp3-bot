@@ -7,8 +7,18 @@ BOT_TOKEN = "8760725679:AAH20fnR_lRNA74N3ke9DZnGA5aMQgz6icI"
 
 DOWNLOAD_FOLDER = "downloads"
 
-# create downloads folder if it doesn't exist
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+
+
+def merge_cookies():
+    cookie_files = ["cookies1.txt", "cookies2.txt"]
+    merged = "cookies.txt"
+
+    with open(merged, "w") as outfile:
+        for fname in cookie_files:
+            if os.path.exists(fname):
+                with open(fname) as infile:
+                    outfile.write(infile.read())
 
 
 async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -17,10 +27,12 @@ async def download_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("⚡ Processing your request...")
 
+    merge_cookies()
+
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        'cookiefile': 'cookies.txt','cookies1.txt',cookies2.txt,
+        'cookiefile': 'cookies.txt',
         'noplaylist': True,
         'quiet': True,
         'http_headers': {
@@ -63,4 +75,3 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_audio))
 print("🚀 Universal Media → MP3 Bot Running")
 
 app.run_polling()
-
