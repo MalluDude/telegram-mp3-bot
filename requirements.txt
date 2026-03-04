@@ -1,5 +1,5 @@
-pip install python-telegram-bot yt-dlp python-dotenv
-python-telegram-bot
+python-telegram-bot==20.7
+python-dotenv
 yt-dlp
 telethon
 moviepy
