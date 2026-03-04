@@ -146,21 +146,22 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # yt-dlp options
         ydl_opts = {
-            'cookiefile': 'cookies.txt',
-            'format': 'bestaudio/best',
-            'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
-            'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        }
+    'cookiefile': 'cookies.txt',
+    'format': 'bestaudio/best',
+    'outtmpl': f'{DOWNLOAD_FOLDER}/{safe_filename}.%(ext)s',
+    'noplaylist': True,
+    'quiet': True,
+    'no_warnings': True,
+    'geo_bypass': True,
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0'
+    }
+}
         
         # Add YouTube-specific options
         if platform == 'youtube':
@@ -256,5 +257,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
