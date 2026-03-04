@@ -190,14 +190,13 @@ async def convert(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Add YouTube-specific options
         if platform == 'youtube':
-            ydl_opts.update({
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'web']
-                    }
-                },
-                'geo_bypass': True,
-            })
+    ydl_opts.update({
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android']
+            }
+        }
+    })
         
         mp3_file = None
         
@@ -282,6 +281,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
