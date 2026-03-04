@@ -45,8 +45,33 @@ PLATFORM_EMOJIS = {
 }
 
 def detect_platform(url):
-    """Detect which platform the URL is from"""
-    url_lower = url.lower()
+    url = url.lower()
+
+    if "youtu" in url:
+        return "youtube"
+
+    if "spotify" in url:
+        return "spotify"
+
+    if "instagram" in url:
+        return "instagram"
+
+    if "pinterest" in url or "pin.it" in url:
+        return "pinterest"
+
+    if "facebook" in url or "fb.watch" in url:
+        return "facebook"
+
+    if "twitter" in url or "x.com" in url:
+        return "twitter"
+
+    if "tiktok" in url:
+        return "tiktok"
+
+    if "reddit" in url:
+        return "reddit"
+
+    return "unknown"
     
     platforms = {
         'youtube': ['youtube.com', 'youtu.be', 'm.youtube.com', 'youtube shorts'],
@@ -257,6 +282,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
